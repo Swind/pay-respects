@@ -257,8 +257,8 @@ fn eval_condition(
 ) -> bool {
 	match condition {
 		"executable" => executables.contains(&arg.to_string()),
-		"err_contains" => regex_match(arg, error_lower),
 		"cmd_contains" => regex_match(arg, last_command),
+		"err_contains" => regex_match_spaceless(arg, error_lower),
 		"min_length" => split_command.len() >= arg.parse::<usize>().unwrap(),
 		"length" => split_command.len() == arg.parse::<usize>().unwrap(),
 		"max_length" => split_command.len() <= arg.parse::<usize>().unwrap() + 1,

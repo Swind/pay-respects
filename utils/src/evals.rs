@@ -23,6 +23,11 @@ fn regex_captures(regex: &str, string: &str) -> Vec<String> {
 }
 
 pub fn regex_match(regex: &str, string: &str) -> bool {
+	let regex = Regex::new(&regex).unwrap();
+	regex.is_match(&string)
+}
+
+pub fn regex_match_spaceless(regex: &str, string: &str) -> bool {
 	let regex = regex.split_whitespace().collect::<Vec<&str>>().join("");
 	let string = string.split_whitespace().collect::<Vec<&str>>().join("");
 	let regex = Regex::new(&regex).unwrap();
