@@ -23,4 +23,5 @@ jobs:
 
       - name: Push to Codeberg
         run: |
+          git fetch origin main
           git push git@codeberg.org:iff/pay-respects.git
