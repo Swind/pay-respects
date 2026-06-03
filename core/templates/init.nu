@@ -27,7 +27,11 @@ def --env __pr_main [mode: string] {
 
 def __pr_base [mode: string, command: string] {
 	let alias = (help aliases | select name expansion | each ({ |row| $row.name + "=" + $row.expansion }) | str join (char nl))
+	{%- if let Some(prefix) = self.prefix %}
+	let prefix = '{{ prefix }}'
+	{%- else %}
 	let prefix = if ($env.PROMPT_INDICATOR | is-not-empty) { $env.PROMPT_INDICATOR } else { do $env.PROMPT_COMMAND }
+	{%- endif %}
 	with-env { _PR_MODE: $mode, _PR_PREFIX: $prefix, _PR_LAST_COMMAND: $command, _PR_ALIAS: $alias, _PR_SHELL: {{ shell }} } {
 		`{{ binary_path }}`
 	}

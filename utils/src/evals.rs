@@ -23,8 +23,8 @@ fn regex_captures(regex: &str, string: &str) -> Vec<String> {
 }
 
 pub fn regex_match(regex: &str, string: &str) -> bool {
-	let regex = Regex::new(&regex).unwrap();
-	regex.is_match(&string)
+	let regex = Regex::new(regex).unwrap();
+	regex.is_match(string)
 }
 
 pub fn regex_match_spaceless(regex: &str, string: &str) -> bool {

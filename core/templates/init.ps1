@@ -18,7 +18,11 @@ function __pr_base {
 			)
 
 	try {
+		{%- if let Some(prefix) = self.prefix %}
+		$env:_PR_PREFIX = '{{ prefix }}'
+		{%- else %}
 		$env:_PR_PREFIX = (prompt)
+		{%- endif %}
 		$env:_PR_MODE = $mode
 		$env:_PR_LAST_COMMAND = $Command
 		$env:_PR_ALIAS = (Get-Alias | Out-String)

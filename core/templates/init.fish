@@ -8,7 +8,11 @@ function __pr_main -a mode
 end
 
 function __pr_base -a mode last_command
+	{%- if let Some(prefix) = self.prefix %}
+	set prefix '{{ prefix }}'
+	{%- else %}
 	set prefix (set -q SHELL_PROMPT_SUFFIX; and echo $SHELL_PROMPT_SUFFIX; or fish_prompt)
+	{% endif %}
 	_PR_MODE="$mode" _PR_PREFIX="$prefix" _PR_LAST_COMMAND="$last_command" _PR_ALIAS="$(alias)" _PR_SHELL="{{ shell }}" "{{ binary_path }}"
 end
 

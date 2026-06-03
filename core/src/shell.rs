@@ -369,6 +369,7 @@ pub fn initialization(init: &mut Init) {
 	let alias = &init.alias;
 	let cnf = init.cnf;
 	let binary_path = &init.binary_path;
+	let prefix = init.cmd_prefix.as_deref();
 
 	let shell = &init.shell;
 
@@ -379,6 +380,7 @@ pub fn initialization(init: &mut Init) {
 		alias: &'a str,
 		binary_path: &'a str,
 		cnf: bool,
+		prefix: Option<&'a str>,
 	}
 	#[derive(Template)]
 	#[template(path = "init.zsh", escape = "none")]
@@ -387,6 +389,7 @@ pub fn initialization(init: &mut Init) {
 		alias: &'a str,
 		binary_path: &'a str,
 		cnf: bool,
+		prefix: Option<&'a str>,
 	}
 	#[derive(Template)]
 	#[template(path = "init.fish", escape = "none")]
@@ -395,6 +398,7 @@ pub fn initialization(init: &mut Init) {
 		alias: &'a str,
 		binary_path: &'a str,
 		cnf: bool,
+		prefix: Option<&'a str>,
 	}
 	#[derive(Template)]
 	#[template(path = "init.ps1", escape = "none")]
@@ -403,6 +407,7 @@ pub fn initialization(init: &mut Init) {
 		alias: &'a str,
 		binary_path: &'a str,
 		cnf: bool,
+		prefix: Option<&'a str>,
 	}
 	#[derive(Template)]
 	#[template(path = "init.nu", escape = "none")]
@@ -410,6 +415,7 @@ pub fn initialization(init: &mut Init) {
 		shell: &'a str,
 		alias: &'a str,
 		binary_path: &'a str,
+		prefix: Option<&'a str>,
 	}
 
 	let initialize = match shell.as_str() {
@@ -418,6 +424,7 @@ pub fn initialization(init: &mut Init) {
 			alias,
 			binary_path,
 			cnf,
+			prefix,
 		}
 		.render()
 		.unwrap(),
@@ -426,6 +433,7 @@ pub fn initialization(init: &mut Init) {
 			alias,
 			binary_path,
 			cnf,
+			prefix,
 		}
 		.render()
 		.unwrap(),
@@ -434,6 +442,7 @@ pub fn initialization(init: &mut Init) {
 			alias,
 			binary_path,
 			cnf,
+			prefix,
 		}
 		.render()
 		.unwrap(),
@@ -442,6 +451,7 @@ pub fn initialization(init: &mut Init) {
 			alias,
 			binary_path,
 			cnf,
+			prefix,
 		}
 		.render()
 		.unwrap(),
@@ -449,6 +459,7 @@ pub fn initialization(init: &mut Init) {
 			shell,
 			alias,
 			binary_path,
+			prefix,
 		}
 		.render()
 		.unwrap(),

@@ -3,6 +3,7 @@ pub struct Init {
 	pub binary_path: String,
 	pub alias: String,
 	pub cnf: bool,
+	pub cmd_prefix: Option<String>,
 }
 
 impl Init {
@@ -12,6 +13,7 @@ impl Init {
 			binary_path: String::from(""),
 			alias: String::from("f"),
 			cnf: true,
+			cmd_prefix: None,
 		}
 	}
 }

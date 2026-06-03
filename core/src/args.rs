@@ -1,5 +1,6 @@
 use crate::{init::Init, shell::initialization};
 use colored::Colorize;
+use pay_respects_utils::strings::print_error;
 
 pub enum Status {
 	Continue,
@@ -36,7 +37,24 @@ pub fn handle_args(args: impl IntoIterator<Item = String>) -> Status {
 				_ => init.alias = String::from("f"),
 			},
 			"--nocnf" => init.cnf = false,
-			_ => init.shell = arg,
+			"-P" | "--prompt-prefix" => match iter.peek() {
+				Some(next_arg) if !next_arg.starts_with('-') => {
+					init.cmd_prefix = Some(next_arg.to_string());
+					iter.next();
+				}
+				_ => {
+					print_error("--prompt-prefix requires argument.");
+					return Status::Error;
+				}
+			},
+			_ => {
+				if arg.starts_with('-') {
+					print_error(&format!("Unknown option: {}", arg));
+					return Status::Error;
+				} else {
+					init.shell = arg
+				}
+			}
 		}
 	}
 
@@ -50,11 +68,19 @@ pub fn handle_args(args: impl IntoIterator<Item = String>) -> Status {
 }
 
 fn print_help() {
+	let init = "pay-respects <shell> [OPTIONS]";
+	let options = r#"Options:
+	-h, --help                   Print help information
+	-v, --version                Print version information
+	-a, --alias [<alias>]        Set alias for the function (default: f)
+	    --nocnf                  Do not load cnf file
+	-P, --prompt-prefix <prefix> Force a prompt prefix (e.g. ">" or "❯")
+"#;
 	println!(
 		"{}",
 		t!(
 			"help",
-			usage = "pay-respects <shell> [--alias [<alias>]] [--nocnf]",
+			usage = format!("{}\n\n{}", init, options),
 			eval = "Bash / Zsh / Fish".bold().to_string(),
 			eval_examples = r#"
 eval "$(pay-respects bash)"

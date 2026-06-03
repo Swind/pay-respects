@@ -5,7 +5,11 @@ __pr_main() {
 }
 
 __pr_base() {
+	{%- if let Some(prefix) = self.prefix %}
+	prefix='{{ prefix }}'
+	{%- else %}
 	prefix="${PS1@P}"
+	{% endif %}
 	_PR_MODE="$1" _PR_PREFIX="$prefix" _PR_LAST_COMMAND="$2" _PR_ALIAS="`alias`" _PR_SHELL="{{ shell }}" "{{ binary_path }}"
 }
 

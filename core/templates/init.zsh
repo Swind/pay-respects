@@ -5,7 +5,11 @@ function __pr_main() {
 }
 
 function __pr_base() {
+	{%- if let Some(prefix) = self.prefix %}
+	prefix='{{ prefix }}'
+	{%- else %}
 	prefix=$(print -P "$PROMPT")
+	{% endif %}
 	_PR_MODE="$1" _PR_PREFIX="$prefix" _PR_LAST_COMMAND="$2" _PR_ALIAS="`alias`" _PR_SHELL="{{ shell }}" "{{ binary_path }}"
 }
 
