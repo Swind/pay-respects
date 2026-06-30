@@ -216,19 +216,14 @@ fn print_info() {
 
 	// Built-in rules
 	section("Built-in Rules");
-	let total = option_env!("_BUILTIN_RULES_TOTAL").unwrap_or("?");
-	let command = option_env!("_BUILTIN_RULES_COMMAND").unwrap_or("?");
-	println!("  Total:            {}", total);
-	println!("  Command-specific: {}", command);
-	println!(
-		"  Special (_PR_*):  {}",
-		total
-			.parse::<usize>()
-			.ok()
-			.zip(command.parse::<usize>().ok())
-			.map(|(t, c)| (t - c).to_string())
-			.unwrap_or_else(|| "?".to_string())
-	);
+	let command_names = option_env!("_BUILTIN_RULES_COMMAND_NAMES").unwrap_or("");
+	let special_names = option_env!("_BUILTIN_RULES_SPECIAL_NAMES").unwrap_or("");
+	if !command_names.is_empty() {
+		println!("  Command-specific: {}", command_names.replace(',', ", "));
+	}
+	if !special_names.is_empty() {
+		println!("  Special (_PR_*):  {}", special_names.replace(',', ", "));
+	}
 
 	// Config files
 	section("Config Files");
