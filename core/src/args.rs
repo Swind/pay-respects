@@ -1,6 +1,6 @@
 use crate::{init::Init, shell::initialization};
 use colored::Colorize;
-use pay_respects_utils::files::user_config_path;
+use pay_respects_utils::files::{config_files, get_path_files, user_config_path};
 use pay_respects_utils::strings::print_error;
 
 pub enum Status {
@@ -32,6 +32,10 @@ pub fn handle_args(args: impl IntoIterator<Item = String>) -> Status {
 			}
 			"init-config" => {
 				init_config();
+				return Status::Exit;
+			}
+			"info" => {
+				print_info();
 				return Status::Exit;
 			}
 			"-a" | "--alias" => match iter.peek() {
@@ -83,6 +87,7 @@ fn print_help() {
 
 Commands:
 	init-config                  Create a default config file
+	info                         Show current configuration and loaded modules
 "#;
 	println!(
 		"{}",
@@ -197,6 +202,77 @@ fn init_config() {
 		Ok(_) => println!("Config file created at {}", path_display),
 		Err(e) => print_error(&format!("Failed to write config file: {}", e)),
 	}
+}
+
+fn print_info() {
+	let section = |title: &str| println!("\n{}", title.bold().underline());
+
+	// Version
+	section("Version");
+	println!(
+		"  {}",
+		option_env!("CARGO_PKG_VERSION").unwrap_or("unknown")
+	);
+
+	// Built-in rules
+	section("Built-in Rules");
+	let total = option_env!("_BUILTIN_RULES_TOTAL").unwrap_or("?");
+	let command = option_env!("_BUILTIN_RULES_COMMAND").unwrap_or("?");
+	println!("  Total:            {}", total);
+	println!("  Command-specific: {}", command);
+	println!(
+		"  Special (_PR_*):  {}",
+		total
+			.parse::<usize>()
+			.ok()
+			.zip(command.parse::<usize>().ok())
+			.map(|(t, c)| (t - c).to_string())
+			.unwrap_or_else(|| "?".to_string())
+	);
+
+	// Config files
+	section("Config Files");
+	let loaded = config_files();
+	if loaded.is_empty() {
+		println!("  (none loaded)");
+		println!("  Default path: {}", user_config_path().dimmed());
+	} else {
+		for file in &loaded {
+			println!("  {}", file.green());
+		}
+	}
+
+	// Modules & fallbacks from PATH
+	section("Modules");
+	let path_files = get_path_files();
+	let modules: Vec<_> = path_files
+		.iter()
+		.filter(|f| f.starts_with("_pay-respects-module-"))
+		.collect();
+	let fallbacks: Vec<_> = path_files
+		.iter()
+		.filter(|f| f.starts_with("_pay-respects-fallback-"))
+		.collect();
+
+	if modules.is_empty() {
+		println!("  Runtime modules: (none)");
+	} else {
+		println!("  Runtime modules:");
+		for m in &modules {
+			println!("    {}", m);
+		}
+	}
+
+	if fallbacks.is_empty() {
+		println!("  Fallback modules: (none)");
+	} else {
+		println!("  Fallback modules:");
+		for f in &fallbacks {
+			println!("    {}", f);
+		}
+	}
+
+	println!();
 }
 
 #[cfg(test)]
