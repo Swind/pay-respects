@@ -1,5 +1,6 @@
 use crate::{init::Init, shell::initialization};
 use colored::Colorize;
+use pay_respects_utils::files::user_config_path;
 use pay_respects_utils::strings::print_error;
 
 pub enum Status {
@@ -27,6 +28,10 @@ pub fn handle_args(args: impl IntoIterator<Item = String>) -> Status {
 			}
 			"-v" | "--version" => {
 				print_version();
+				return Status::Exit;
+			}
+			"init-config" => {
+				init_config();
 				return Status::Exit;
 			}
 			"-a" | "--alias" => match iter.peek() {
@@ -75,6 +80,9 @@ fn print_help() {
 	-a, --alias [<alias>]        Set alias for the function (default: f)
 	    --nocnf                  Do not load cnf file
 	-P, --prompt-prefix <prefix> Force a prompt prefix (e.g. ">" or "❯")
+
+Commands:
+	init-config                  Create a default config file
 "#;
 	println!(
 		"{}",
@@ -108,6 +116,86 @@ fn print_version() {
 	let package_manager = option_env!("_DEF_PR_PACKAGE_MANAGER").map(|dir| dir.to_string());
 	if let Some(package_manager) = package_manager {
 		println!("Default package manager: {}", package_manager);
+	}
+}
+
+fn init_config() {
+	let path = user_config_path();
+	let path_display = path.bold();
+
+	if std::path::Path::new(&path).exists() {
+		eprint!(
+			"Config file already exists at {}\nOverwrite? [y/N] ",
+			path_display
+		);
+		let mut input = String::new();
+		std::io::stdin().read_line(&mut input).unwrap();
+		let input = input.trim();
+		if input != "y" && input != "Y" {
+			println!("Aborted.");
+			return;
+		}
+	}
+
+	let default_config = r#"# pay-respects configuration file
+# See https://github.com/Swind/pay-respects/blob/main/config.md for all options
+
+# Preferred command for privileged access
+# privilege = "sudo"
+
+# Maximum time in milliseconds for getting previous output
+# timeout = 3000
+
+# Apply existing rules to a set of commands
+# merge_commands = [
+# 	["ls", "exa"],
+# 	["grep", "rg"],
+# ]
+
+# Commands that won't return any message when run
+# blocking_commands = ["vim", "nano"]
+
+# How suggestions are evaluated after being confirmed ("Internal" or "Shell")
+# eval_method = "Internal"
+
+# Algorithm for fuzzy searching ("TrigramDamerauLevenshtein" or "DamerauLevenshtein")
+# search_type = "TrigramDamerauLevenshtein"
+
+# Minimum characters required to start searching
+# search_threshold = 3
+
+# [trigram]
+# minimum_score = 0.5
+
+# [dl_distance]
+# percentage = 27.18
+# max = 5
+# min = 1
+
+# [package_manager]
+# package_manager = "pacman"
+# install_method = "System"
+
+# AI module settings (requires _pay-respects-fallback-100-request-ai)
+# [ai]
+# url = "https://api.openai.com/v1/chat/completions"
+# api_key = "your-api-key"
+# model = "gpt-4o"
+# additional_prompt = ""
+# locale = ""
+"#;
+
+	// Create parent directory if needed
+	if let Some(parent) = std::path::Path::new(&path).parent() {
+		if let Err(e) = std::fs::create_dir_all(parent) {
+			print_error(&format!("Failed to create directory {}: {}", parent.display(), e));
+			return;
+		}
+	}
+
+	match std::fs::write(&path, default_config) {
+		Ok(_) => println!("Config file created at {}", path_display),
+		Err(e) => print_error(&format!("Failed to write config file: {}", e)),
 	}
 }
 
