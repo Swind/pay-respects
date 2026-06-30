@@ -893,6 +893,7 @@ dependencies = [
  "askama",
  "colored",
  "futures-util",
+ "pay-respects-utils",
  "reqwest",
  "rust-i18n",
  "serde",
@@ -901,6 +902,7 @@ dependencies = [
  "terminal_size",
  "textwrap",
  "tokio",
+ "toml 0.8.23",
 ]
 
 [[package]]

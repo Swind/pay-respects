@@ -5,6 +5,7 @@ use futures_util::StreamExt;
 use serde::Deserialize;
 
 use crate::buffer;
+use crate::config;
 
 struct Conf {
 	key: String,
@@ -70,6 +71,9 @@ pub async fn ai_suggestion(last_command: &str, error_msg: &str, locale: &str) {
 		}
 	};
 
+	let file_conf = config::load_config();
+	let ai = file_conf.ai.unwrap_or_default();
+
 	let char_limit = 500;
 
 	let error_msg = if error_msg.chars().count() > 500 + 3 {
@@ -91,7 +95,10 @@ pub async fn ai_suggestion(last_command: &str, error_msg: &str, locale: &str) {
 	};
 
 	let user_locale = {
-		let locale = std::env::var("_PR_AI_LOCALE").unwrap_or_else(|_| locale.to_string());
+		let locale = std::env::var("_PR_AI_LOCALE")
+			.ok()
+			.or(ai.locale)
+			.unwrap_or_else(|| locale.to_string());
 		if locale.len() < 2 {
 			"en-US".to_string()
 		} else {
@@ -105,11 +112,10 @@ pub async fn ai_suggestion(last_command: &str, error_msg: &str, locale: &str) {
 		"".to_string()
 	};
 
-	let addtional_prompt = if std::env::var("_PR_AI_ADDITIONAL_PROMPT").is_ok() {
-		std::env::var("_PR_AI_ADDITIONAL_PROMPT").unwrap()
-	} else {
-		"".to_string()
-	};
+	let addtional_prompt = std::env::var("_PR_AI_ADDITIONAL_PROMPT")
+		.ok()
+		.or(ai.additional_prompt)
+		.unwrap_or_default();
 
 	let ai_prompt = AiPrompt {
 		last_command,
@@ -216,44 +222,38 @@ fn proc_json(res: &str, buffer: &mut buffer::Buffer) {
 
 impl Conf {
 	pub fn new() -> Option<Self> {
-		let key = match std::env::var("_PR_AI_API_KEY") {
-			Ok(key) => key,
-			Err(_) => {
-				if let Some(key) = option_env!("_DEF_PR_AI_API_KEY") {
-					key.to_string()
-				} else {
-					"".to_string()
-				}
-			}
-		};
+		let file_conf = config::load_config();
+		let ai = file_conf.ai.unwrap_or_default();
+
+		let key = std::env::var("_PR_AI_API_KEY")
+			.ok()
+			.or_else(|| {
+				option_env!("_DEF_PR_AI_API_KEY").map(|s| s.to_string())
+			})
+			.or(ai.api_key)
+			.unwrap_or_default();
 		if key.is_empty() {
 			return None;
 		}
 
-		let url = match std::env::var("_PR_AI_URL") {
-			Ok(url) => url,
-			Err(_) => {
-				if let Some(url) = option_env!("_DEF_PR_AI_URL") {
-					url.to_string()
-				} else {
-					"".to_string()
-				}
-			}
-		};
+		let url = std::env::var("_PR_AI_URL")
+			.ok()
+			.or_else(|| {
+				option_env!("_DEF_PR_AI_URL").map(|s| s.to_string())
+			})
+			.or(ai.url)
+			.unwrap_or_default();
 		if url.is_empty() {
 			return None;
 		}
 
-		let model = match std::env::var("_PR_AI_MODEL") {
-			Ok(model) => model,
-			Err(_) => {
-				if let Some(model) = option_env!("_DEF_PR_AI_MODEL") {
-					model.to_string()
-				} else {
-					"".to_string()
-				}
-			}
-		};
+		let model = std::env::var("_PR_AI_MODEL")
+			.ok()
+			.or_else(|| {
+				option_env!("_DEF_PR_AI_MODEL").map(|s| s.to_string())
+			})
+			.or(ai.model)
+			.unwrap_or_default();
 		if model.is_empty() {
 			return None;
 		}
