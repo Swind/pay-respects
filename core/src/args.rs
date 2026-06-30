@@ -229,8 +229,11 @@ fn print_info() {
 	section("Config Files");
 	let loaded = config_files();
 	if loaded.is_empty() {
-		println!("  (none loaded)");
-		println!("  Default path: {}", user_config_path().dimmed());
+		println!("  (none)");
+		println!(
+			"  Run {} to create one",
+			"pay-respects init-config".bold()
+		);
 	} else {
 		for file in &loaded {
 			println!("  {}", file.green());
