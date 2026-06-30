@@ -209,14 +209,14 @@ Install from your package manager if available:
 Alternatively, install pre-built binaries from [GitHub releases]. Install
 scripts are available. For Unix:
 ```sh
-curl -sSfL https://raw.githubusercontent.com/iffse/pay-respects/main/install.sh | sh
+curl -sSfL https://raw.githubusercontent.com/Swind/pay-respects/main/install.sh | sh
 ```
 For Windows, with PowerShell:
 ```pwsh
-irm https://raw.githubusercontent.com/iffse/pay-respects/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Swind/pay-respects/main/install.ps1 | iex
 ```
 
-[GitHub releases]: https://github.com/iffse/pay-respects/releases
+[GitHub releases]: https://github.com/Swind/pay-respects/releases
 
 <details>
 	<summary>Cargo / Compile from source (any OS/architecture supported by Rust)</summary>
@@ -232,7 +232,7 @@ irm https://raw.githubusercontent.com/iffse/pay-respects/main/install.ps1 | iex
 
 > Clone from git and install, suitable for adding custom compile-time rules:
 > ```sh
-> git clone --depth 1 https://github.com/iffse/pay-respects
+> git clone --depth 1 https://github.com/Swind/pay-respects
 > cd pay-respects
 > cargo install --path core
 > cargo install --path module-runtime-rules

@@ -7,7 +7,7 @@ edition = "2024"
 # for crates.io
 description = "Command suggestions, command-not-found and thefuck replacement written in Rust"
 homepage = "https://codeberg.org/iff/pay-respects"
-repository = "https://github.com/iffse/pay-respects"
+repository = "https://github.com/Swind/pay-respects"
 keywords = ["cli", "terminal", "utility", "shell"]
 categories = ["command-line-utilities"]
 license = "AGPL-3.0-or-later"

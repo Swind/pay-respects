@@ -1,4 +1,4 @@
-$RepoOwner = "iffse"
+$RepoOwner = "Swind"
 $RepoName  = "pay-respects"
 $InstallDir = "$HOME\AppData\Roaming\pay-respects"
 

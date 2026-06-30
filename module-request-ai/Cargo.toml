@@ -5,7 +5,7 @@ edition = "2024"
 
 description = "AI request module for the pay-respects CLI tool"
 homepage = "https://codeberg.org/iff/pay-respects"
-repository = "https://github.com/iffse/pay-respects"
+repository = "https://github.com/Swind/pay-respects"
 license = "AGPL-3.0-or-later"
 include = ["**/*.rs", "templates/*"]
 

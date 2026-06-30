@@ -5,7 +5,7 @@ edition = "2024"
 
 # for crates.io
 description = "Compile time rule parser for the pay-respects CLI tool"
-repository = "https://github.com/iffse/pay-respects"
+repository = "https://github.com/Swind/pay-respects"
 license = "MPL-2.0"
 include = [
 	"**/*.rs",

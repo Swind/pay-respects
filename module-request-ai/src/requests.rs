@@ -222,7 +222,7 @@ impl Conf {
 				if let Some(key) = option_env!("_DEF_PR_AI_API_KEY") {
 					key.to_string()
 				} else {
-					"Y29uZ3JhdHVsYXRpb25zLCB5b3UgZm91bmQgdGhlIHNlY3JldCE=".to_string()
+					"".to_string()
 				}
 			}
 		};
@@ -236,7 +236,7 @@ impl Conf {
 				if let Some(url) = option_env!("_DEF_PR_AI_URL") {
 					url.to_string()
 				} else {
-					"https://pay-respects-serverless.iffse.eu.org/".to_string()
+					"".to_string()
 				}
 			}
 		};
@@ -250,7 +250,7 @@ impl Conf {
 				if let Some(model) = option_env!("_DEF_PR_AI_MODEL") {
 					model.to_string()
 				} else {
-					"uwu".to_string()
+					"".to_string()
 				}
 			}
 		};

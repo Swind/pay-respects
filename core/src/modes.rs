@@ -42,7 +42,7 @@ pub fn suggestion(data: &mut Data) {
 	eprintln!(
 		"{}\n{}",
 		t!("contribute"),
-		option_env!("CARGO_PKG_REPOSITORY").unwrap_or("https://github.com/iffse/pay-respects/")
+		option_env!("CARGO_PKG_REPOSITORY").unwrap_or("https://github.com/Swind/pay-respects/")
 	);
 }
 
@@ -102,7 +102,7 @@ pub fn noconfirm(data: &mut Data) {
 	eprintln!(
 		"{}\n{}",
 		t!("contribute"),
-		option_env!("CARGO_PKG_REPOSITORY").unwrap_or("https://github.com/iffse/pay-respects/")
+		option_env!("CARGO_PKG_REPOSITORY").unwrap_or("https://github.com/Swind/pay-respects/")
 	);
 }
 

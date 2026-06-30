@@ -82,7 +82,7 @@ main() {
 	echo "pay-respects has an optional AI module to provide suggestions when no rules match"
 	echo "The module works out-of-the-box with no data collection"
 	echo "Do you want to keep the AI module? [Y/n]"
-	read -r _keep_AI
+	read -r _keep_AI </dev/tty
 	if [ "${_keep_AI}" = "N" ] || [ "${_keep_AI}" = "n" ] ; then
 		for _module in ${_modules}; do
 			if echo "${_module}" | grep -q "request-ai"; then
@@ -156,7 +156,7 @@ download_pay_respects() {
 	fi
 	need_cmd grep
 
-	local _releases_url="https://api.github.com/repos/iffse/pay-respects/releases/latest"
+	local _releases_url="https://api.github.com/repos/Swind/pay-respects/releases/latest"
 	local _releases
 	case "${_dld}" in
 	curl) _releases="$(curl -sL "${_releases_url}")" ||
