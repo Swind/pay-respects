@@ -1,72 +1,106 @@
 # Request AI Module
 
-Module for [pay-respects](https://codeberg.org/iff/pay-respects) to request AI for suggestions.
+Module for [pay-respects](https://github.com/Swind/pay-respects) to request AI
+suggestions when no built-in rule matches. Powered by
+[`rig-core`](https://github.com/0xplaygrounds/rig), which lets this module
+talk to a provider's native API directly (not just OpenAI-compatible
+endpoints).
 
-## Configurations
+This module does nothing unless it is explicitly configured: there is no
+built-in default API key, URL, or model. See [Configuration](#configuration)
+below.
 
-Configuration is done via environment variables:
+> **Migrating from older versions:** `url` used to be the full chat
+> completions endpoint (e.g. `https://api.openai.com/v1/chat/completions`).
+> It is now the provider's API root instead (e.g. `https://api.openai.com/v1`),
+> since the specific path is now built internally. Drop the trailing
+> `/chat/completions` from your existing `url` if you have one configured.
+> `_PR_AI_EXTRA_BODY` was also removed; merge its content into `_PR_AI_EXTRA`
+> (or the config file's `extra` field) instead.
 
-- `_PR_AI_API_KEY`: Your own API key
-- `_PR_AI_URL`: Any OpenAI compatible URL can be used, e.g.:
-	- `https://api.openai.com/v1/chat/completions`: OpenAI ChatGPT
-	- `https://api.groq.com/openai/v1/chat/completions`: GroqCloud
-	- `http://localhost:11434/v1/chat/completions`: Local Ollama
-- `_PR_AI_MODEL`: Model used. Reasoning models are also supported
-- `_PR_AI_EXTRA`: Extra Json field requests, e.g. `"temperature" = 0.5`
-- `_PR_AI_EXTRA_BODY`: A Json object for the `extra_body` field, e.g. `{"chat_template_kwargs": {"enable_thinking": false}}`
-- `_PR_AI_DISABLE`: Setting to any value disables AI integration
-- `_PR_AI_LOCALE`: Locale in which the AI explains the suggestion. Defaults to user system locale. Useful when you use small models that speak only English, for example.
-- `_PR_AI_ADDITIONAL_PROMPT`: Additional prompts to be included. (Yes, you can include role-playing prompts you pervert)
-	- `User's environment is Zsh running in Arch Linux.`
-	- `You are a cute catgirl. Always use cute phrases and expressions to prove your cuteness in the <note> section, including cat imitations like nya~, にゃ~,　喵～.`
+## Configuration
 
-Compile time variables: Default values for the respective variables above when not set
+Configuration can be set via the `[ai]` section of
+[`config.toml`](../config.md), or overridden with environment variables.
+Environment variables always take priority over the config file.
 
-- `_DEF_PR_AI_API_KEY`
-- `_DEF_PR_AI_URL`
-- `_DEF_PR_AI_MODEL`
+```toml
+# ~/.config/pay-respects/config.toml
+[ai]
+provider = "openai"                                   # optional, defaults to "openai"
+api_key = "sk-..."
+model = "gpt-4o"
+url = "https://api.openai.com/v1"                     # optional, overrides the provider's default URL
+```
 
-If default values were not provided, pay-respects' own values will be used. Your request will be filtered to avoid abuse usages. Request will then be forwarded to a LLM provider that will not use your data for training. This service is provided free and is not guaranteed to always work. Donations would be appreciated:
+| Config field        | Env var                      | Description |
+|---|---|---|
+| `provider`          | `_PR_AI_PROVIDER`             | Which LLM provider to use. See [Supported providers](#supported-providers). Defaults to `openai`. |
+| `api_key`           | `_PR_AI_API_KEY`               | Your API key. |
+| `model`             | `_PR_AI_MODEL`                 | Model name/ID. Reasoning models are supported. |
+| `url`               | `_PR_AI_URL`                    | Overrides the provider's default base URL. Required for self-hosted/custom OpenAI-compatible endpoints (see examples below); optional for hosted providers with a well-known endpoint. |
+| `additional_prompt` | `_PR_AI_ADDITIONAL_PROMPT`      | Additional prompt/context to include. (Yes, you can include role-playing prompts you pervert) |
+| `locale`            | `_PR_AI_LOCALE`                 | Locale in which the AI explains the suggestion. Defaults to your system locale. |
+| `extra`             | `_PR_AI_EXTRA`                  | Raw JSON object merged into the request, e.g. `{"temperature":0.5}`. For servers expecting a nested `extra_body` field, nest it yourself: `{"extra_body":{"chat_template_kwargs":{"enable_thinking":false}}}`. |
+| —                   | `_PR_AI_DISABLE`                | Setting to any value disables AI integration. |
 
-<div>
-	<a
-		href="https://liberapay.com/iff/donate"
-		target="_blank"
-		rel="noreferrer"
-		><img
-			src="https://liberapay.com/assets/widgets/donate.svg"
-			alt="Donate using Liberapay"
-		/></a
-	>
-	<a href="https://ko-fi.com/iffse" target="_blank" rel="noreferrer"
-		><img
-			height='30'
-			src="https://www.vectorlogo.zone/logos/ko-fi/ko-fi-ar21.svg"
-			alt="Donate using Ko-fi"
-			style="height: 30px;"
-		/></a
-	>
-	<br />
-	<a href="https://iffse.eu.org/stripe" target="_blank" rel="noreferrer"
-		><img
-			height='30'
-			src="https://cdn.brandfolder.io/KGT2DTA4/at/8vbr8k4mr5xjwk4hxq4t9vs/Stripe_wordmark_-_blurple.svg"
-			alt="Donate using Stripe"
-			style="height: 30px;"
-		/></a
-	>
-	<a
-		href="https://www.paypal.com/donate/?hosted_button_id=QN7Z7ZHRAAFZL"
-		target="_blank"
-		rel="noreferrer"
-		><img
-			height='30'
-			src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg"
-			alt="Donate using PayPal"
-			style="height: 25px; margin-bottom: 3px;"
-		/></a
-	>
-</div>
+Compile-time variables set the default value for their respective variable
+above, when neither the env var nor the config file set it:
+`_DEF_PR_AI_PROVIDER`, `_DEF_PR_AI_API_KEY`, `_DEF_PR_AI_URL`, `_DEF_PR_AI_MODEL`.
+
+### Examples
+
+Custom OpenAI-compatible endpoint (Groq, self-hosted proxy, etc.), the
+default `provider`:
+```toml
+[ai]
+api_key = "gsk_..."
+model = "llama-3.3-70b-versatile"
+url = "https://api.groq.com/openai/v1"
+```
+
+Anthropic, using its native API directly (not OpenAI-compatible, only
+possible thanks to `rig-core`):
+```toml
+[ai]
+provider = "anthropic"
+api_key = "sk-ant-..."
+model = "claude-sonnet-4-6"
+```
+
+Local Ollama:
+```toml
+[ai]
+provider = "ollama"
+api_key = "ollama"     # any non-empty placeholder; Ollama itself needs no key
+model = "llama3"
+# url = "http://localhost:11434"   # default, only needed for remote Ollama
+```
+
+## Supported providers
+
+Set `provider` to one of the following (default: `openai`):
+
+`openai`, `anthropic`, `gemini`, `mistral`, `cohere`, `xai`, `deepseek`,
+`perplexity`, `together`, `groq`, `openrouter`, `huggingface`, `hyperbolic`,
+`ollama`, `llamafile`, `moonshot`, `minimax`, `xiaomimimo`, `zai`,
+`galadriel`, `mira`.
+
+Any of these can also be pointed at a self-hosted/proxied endpoint using
+`url`, as long as it speaks that provider's native API.
+
+Not currently supported: Azure OpenAI (needs extra deployment/API-version
+config), and subscription/OAuth-based providers (ChatGPT, GitHub Copilot).
+
+## Reasoning models
+
+Reasoning/thinking output is supported two ways:
+
+- Natively, when the provider exposes a structured reasoning channel (e.g.
+  DeepSeek Reasoner, extended thinking, etc.) — handled automatically.
+- Via a literal `<think>...</think>` block in the response text, for models
+  that emit reasoning this way instead (common with some open-weight models
+  served through Ollama/vLLM).
 
 ## Advanced Usages
 

@@ -257,59 +257,19 @@ See the following pages:
 > **Disclaimer**: You are using AI generated content on your own risk. Please
 > double-check its suggestions before accepting.
 
-AI suggestions should work out of the box with `request-ai` module installed.
-You can disable it by setting `_PR_AI_DISABLE`:
+If no built-in rule matches, and the `request-ai` module is installed, and
+[AI is configured](./config.md), pay-respects will ask an LLM for a
+suggestion. Any provider supported by [`rig-core`](https://github.com/0xplaygrounds/rig)
+can be used (OpenAI, Anthropic, Gemini, Groq, Ollama, and more), each talking
+to its native API directly. See [module-request-ai/README.md](./module-request-ai/README.md)
+for the full configuration reference and provider list.
+
+There is no built-in API key: you must configure your own provider and key
+before AI suggestions will do anything. To disable it explicitly regardless
+of configuration:
 ```sh
 export _PR_AI_DISABLE=1
 ```
-
-An API key is included with the source (your distribution might have stripped
-them out). It should always work unless I can no longer afford this public service or rate
-limits are reached.
-
-[I don't track nor store
-anything.](https://github.com/iffse/pay-respects-serverless)
-If it's useful to you, consider making a donation:
-
-<div>
-	<a
-		href="https://liberapay.com/iff/donate"
-		target="_blank"
-		rel="noreferrer"
-		><img
-			src="https://liberapay.com/assets/widgets/donate.svg"
-			alt="Donate using Liberapay"
-		/></a
-	>
-	<a href="https://ko-fi.com/iffse" target="_blank" rel="noreferrer"
-		><img
-			height='30'
-			src="https://www.vectorlogo.zone/logos/ko-fi/ko-fi-ar21.svg"
-			alt="Donate using Ko-fi"
-			style="height: 30px;"
-		/></a
-	>
-	<br />
-	<a href="https://iffse.eu.org/stripe" target="_blank" rel="noreferrer"
-		><img
-			height='30'
-			src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Stripe_Logo%2C_revised_2016.svg/1280px-Stripe_Logo%2C_revised_2016.svg.png"
-			alt="Donate using Stripe"
-			style="height: 30px;"
-		/></a
-	>
-	<a
-		href="https://www.paypal.com/donate/?hosted_button_id=QN7Z7ZHRAAFZL"
-		target="_blank"
-		rel="noreferrer"
-		><img
-			height='30'
-			src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg"
-			alt="Donate using PayPal"
-			style="height: 25px; margin-bottom: 3px;"
-		/></a
-	>
-</div>
 
 [AI usages and API configurations](./module-request-ai/README.md)
 

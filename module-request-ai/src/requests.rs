@@ -1,50 +1,16 @@
 use askama::Template;
 use serde_json::Value;
 
-use futures_util::StreamExt;
-use serde::Deserialize;
-
 use crate::buffer;
 use crate::config;
+use crate::provider;
 
 struct Conf {
+	provider: String,
 	key: String,
-	url: String,
+	url: Option<String>,
 	model: String,
-}
-
-// #[derive(Serialize)]
-// struct Input {
-// 	role: String,
-// 	content: String,
-// }
-//
-// #[derive(Serialize)]
-// struct Messages {
-// 	messages: Vec<Input>,
-// 	model: String,
-// 	stream: bool,
-// 	extra_body: Option<Value>,
-// }
-
-#[derive(Debug, Deserialize)]
-pub struct ChatCompletion {
-	// id: String,
-	// object: String,
-	// created: usize,
-	choices: Vec<Choice>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Choice {
-	delta: Delta,
-	// index: usize,
-	// finish_reason: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Delta {
-	content: Option<String>,
+	extra: Option<Value>,
 }
 
 #[derive(Template)]
@@ -54,13 +20,6 @@ struct AiPrompt<'a> {
 	error_msg: &'a str,
 	additional_prompt: &'a str,
 	set_locale: &'a str,
-}
-
-#[derive(Template)]
-#[template(path = "request.txt")]
-struct Request {
-	extra: Option<String>,
-	extra_body: Option<String>,
 }
 
 pub async fn ai_suggestion(last_command: &str, error_msg: &str, locale: &str) {
@@ -131,57 +90,21 @@ pub async fn ai_suggestion(last_command: &str, error_msg: &str, locale: &str) {
 	#[cfg(debug_assertions)]
 	eprintln!("AI module: AI prompt: {}", ai_prompt);
 
-	let extra: Option<String> = std::env::var("_PR_AI_EXTRA").ok();
-	let extra_body: Option<String> = std::env::var("_PR_AI_EXTRA_BODY").ok();
-
-	let body = Request { extra, extra_body };
-	let body = body.render().unwrap();
-	let mut json_body: Value = serde_json::from_str(&body).unwrap();
-	json_body["model"] = Value::String(conf.model);
-	json_body["messages"][0]["content"] = Value::String(ai_prompt);
-	json_body["stream"] = Value::Bool(true);
-
-	let client = reqwest::Client::new();
-	let res = client
-		.post(&conf.url)
-		.body(serde_json::to_string(&json_body).unwrap())
-		.header("Content-Type", "application/json")
-		.bearer_auth(&conf.key)
-		.send()
-		.await
-		.unwrap();
-
-	if res.status() != 200 {
-		eprintln!("AI module: Status code: {}", res.status());
-		eprintln!(
-			"AI module: Error message:\n  {}",
-			res.text().await.unwrap().replace("\n", "\n  ")
-		);
-		return;
-	}
-
-	let mut stream = res.bytes_stream();
-	let mut json_buffer = String::new();
 	let mut buffer = buffer::Buffer::new();
+	let result = provider::stream_completion(
+		&conf.provider,
+		&conf.key,
+		conf.url.as_deref(),
+		&conf.model,
+		conf.extra.clone(),
+		ai_prompt,
+		&mut buffer,
+	)
+	.await;
 
-	while let Some(item) = stream.next().await {
-		let item = item.unwrap();
-		let str = std::str::from_utf8(&item).unwrap();
-
-		json_buffer.push_str(str);
-
-		if !json_buffer.contains("\n\ndata: ") {
-			continue;
-		}
-
-		while json_buffer.contains("\n\ndata: ") {
-			proc_stream_buffer(&mut json_buffer, &mut buffer);
-		}
-	}
-	// remaining buffer
-	json_buffer.push_str("\n\ndata: "); // hackey
-	while json_buffer.contains("\n\ndata: ") {
-		proc_stream_buffer(&mut json_buffer, &mut buffer);
+	if let Err(e) = result {
+		eprintln!("AI module: request failed: {}", e);
+		return;
 	}
 
 	let suggestions = buffer
@@ -196,30 +119,6 @@ pub async fn ai_suggestion(last_command: &str, error_msg: &str, locale: &str) {
 	println!("{}", suggestions);
 }
 
-fn proc_stream_buffer(json_buffer: &mut String, buffer: &mut buffer::Buffer) {
-	let data_loc = json_buffer.find("\n\ndata: ").unwrap();
-	let binding = json_buffer.clone();
-	let split = binding.split_at(data_loc);
-	let json = split.0;
-	*json_buffer = split.1.trim_start().to_string();
-
-	proc_json(json, buffer);
-}
-
-fn proc_json(res: &str, buffer: &mut buffer::Buffer) {
-	if let Some(data) = res.trim().strip_prefix("data: ") {
-		if data == "[DONE]" {
-			return;
-		}
-		let json = serde_json::from_str::<ChatCompletion>(data)
-			.unwrap_or_else(|_| panic!("AI module: Failed to parse JSON content: {}", data));
-		let choice = json.choices.first().expect("AI module: No choices found");
-		if let Some(content) = &choice.delta.content {
-			buffer.proc(content);
-		}
-	}
-}
-
 impl Conf {
 	pub fn new() -> Option<Self> {
 		let file_conf = config::load_config();
@@ -227,37 +126,53 @@ impl Conf {
 
 		let key = std::env::var("_PR_AI_API_KEY")
 			.ok()
-			.or_else(|| {
-				option_env!("_DEF_PR_AI_API_KEY").map(|s| s.to_string())
-			})
+			.or_else(|| option_env!("_DEF_PR_AI_API_KEY").map(|s| s.to_string()))
 			.or(ai.api_key)
 			.unwrap_or_default();
 		if key.is_empty() {
 			return None;
 		}
 
+		// Selects which LLM provider to talk to (see `provider.rs` for the
+		// full list). Defaults to "openai", preserving the historical
+		// behavior of talking to any OpenAI-compatible endpoint via `url`.
+		let provider = std::env::var("_PR_AI_PROVIDER")
+			.ok()
+			.or_else(|| option_env!("_DEF_PR_AI_PROVIDER").map(|s| s.to_string()))
+			.or(ai.provider)
+			.unwrap_or_default();
+
+		// Optional: overrides the provider's default base URL. Required for
+		// custom OpenAI-compatible endpoints (self-hosted proxies, Ollama,
+		// Groq, etc.), optional for providers with a well-known default.
 		let url = std::env::var("_PR_AI_URL")
 			.ok()
-			.or_else(|| {
-				option_env!("_DEF_PR_AI_URL").map(|s| s.to_string())
-			})
+			.or_else(|| option_env!("_DEF_PR_AI_URL").map(|s| s.to_string()))
 			.or(ai.url)
-			.unwrap_or_default();
-		if url.is_empty() {
-			return None;
-		}
+			.filter(|s| !s.is_empty());
 
 		let model = std::env::var("_PR_AI_MODEL")
 			.ok()
-			.or_else(|| {
-				option_env!("_DEF_PR_AI_MODEL").map(|s| s.to_string())
-			})
+			.or_else(|| option_env!("_DEF_PR_AI_MODEL").map(|s| s.to_string()))
 			.or(ai.model)
 			.unwrap_or_default();
 		if model.is_empty() {
 			return None;
 		}
 
-		Some(Conf { key, url, model })
+		// Raw JSON object merged into the request (e.g. temperature, or a
+		// nested `extra_body` field for servers that expect one).
+		let extra = std::env::var("_PR_AI_EXTRA")
+			.ok()
+			.or(ai.extra)
+			.and_then(|s| serde_json::from_str::<Value>(&s).ok());
+
+		Some(Conf {
+			provider,
+			key,
+			url,
+			model,
+			extra,
+		})
 	}
 }

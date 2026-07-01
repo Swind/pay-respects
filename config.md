@@ -79,4 +79,13 @@ package_manager = "pacman"
 # - System
 # - Shell (nix and guix only)
 install_method = "System"
+
+# Settings for the optional AI fallback module
+# (_pay-respects-fallback-100-request-ai). See module-request-ai/README.md
+# for the full list of providers and options.
+[ai]
+provider = "openai"
+api_key = "sk-..."
+model = "gpt-4o"
+url = "https://api.openai.com/v1"
 ```

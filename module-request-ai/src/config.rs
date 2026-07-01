@@ -10,11 +10,16 @@ pub struct ConfigReader {
 
 #[derive(Deserialize, Default, Clone)]
 pub struct AiConfig {
+	pub provider: Option<String>,
 	pub url: Option<String>,
 	pub api_key: Option<String>,
 	pub model: Option<String>,
 	pub additional_prompt: Option<String>,
 	pub locale: Option<String>,
+	/// Raw JSON object merged into the request (e.g. `{"temperature":0.5}`).
+	/// For providers/proxies that expect a nested `extra_body` field, nest it
+	/// yourself, e.g. `{"extra_body":{"chat_template_kwargs":{...}}}`.
+	pub extra: Option<String>,
 }
 
 #[derive(Default)]

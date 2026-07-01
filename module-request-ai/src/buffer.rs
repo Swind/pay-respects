@@ -131,6 +131,59 @@ impl Buffer {
 		}
 		self.buf = slice.last().unwrap().to_string();
 	}
+
+	/// Whether the buffer is currently displaying reasoning/thinking content,
+	/// either from a `<think>` tag in plain text, or from a provider's native
+	/// structured reasoning stream (see [`Buffer::proc_reasoning`]).
+	pub fn is_reasoning(&self) -> bool {
+		self.state == State::Think
+	}
+
+	/// Handle a reasoning delta coming directly from a provider's structured
+	/// reasoning channel (as opposed to a `<think>` tag embedded in plain
+	/// text). Enters "thinking" display mode automatically on first call.
+	///
+	/// Unlike [`Buffer::proc_think`], there is no in-band `</think>` marker
+	/// to watch for here: the caller must call [`Buffer::finish_reasoning`]
+	/// once normal text resumes.
+	pub fn proc_reasoning(&mut self, data: &str) {
+		if self.state != State::Think {
+			self.state = State::Think;
+			self.buf.clear();
+			let warn = format!("{}:", t!("ai-thinking")).bold().blue().to_string();
+			eprintln!("{}", warn);
+		}
+
+		self.buf.push_str(data);
+		self.buf = fill(&mut self.buf);
+
+		if !self.buf.contains('\n') {
+			eprint!("{}", data);
+			std::io::stderr().flush().unwrap();
+			return;
+		}
+
+		let slice = self.buf.split('\n').collect::<Vec<&str>>();
+		for (idx, line) in slice.iter().enumerate() {
+			clear_line();
+			if idx == slice.len() - 1 {
+				eprint!("{}", line);
+			} else {
+				eprintln!("{}", line);
+			}
+			std::io::stderr().flush().unwrap();
+		}
+		self.buf = slice.last().unwrap().to_string();
+	}
+
+	/// Ends native reasoning display mode (see [`Buffer::proc_reasoning`]),
+	/// returning to normal write mode. No-op if not currently reasoning.
+	pub fn finish_reasoning(&mut self) {
+		if self.state == State::Think {
+			self.state = State::Write;
+			self.buf.clear();
+		}
+	}
 }
 
 fn fix_data(data: &mut String) {

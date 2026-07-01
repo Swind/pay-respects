@@ -20,6 +20,7 @@ use crate::requests::ai_suggestion;
 use sys_locale::get_locale;
 mod buffer;
 mod config;
+mod provider;
 mod requests;
 
 #[macro_use]

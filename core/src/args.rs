@@ -182,12 +182,15 @@ fn init_config() {
 # install_method = "System"
 
 # AI module settings (requires _pay-respects-fallback-100-request-ai)
+# See module-request-ai/README.md for the full list of supported providers.
 # [ai]
-# url = "https://api.openai.com/v1/chat/completions"
+# provider = "openai"
+# url = "https://api.openai.com/v1"
 # api_key = "your-api-key"
 # model = "gpt-4o"
 # additional_prompt = ""
 # locale = ""
+# extra = '{"temperature":0.5}'
 "#;
 
 	// Create parent directory if needed
