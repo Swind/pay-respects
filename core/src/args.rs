@@ -38,6 +38,10 @@ pub fn handle_args(args: impl IntoIterator<Item = String>) -> Status {
 				print_info();
 				return Status::Exit;
 			}
+			"login" => {
+				let rest: Vec<String> = iter.collect();
+				return run_login(&rest);
+			}
 			"-a" | "--alias" => match iter.peek() {
 				Some(next_arg) if !next_arg.starts_with('-') => {
 					init.alias = next_arg.to_string();
@@ -88,6 +92,7 @@ fn print_help() {
 Commands:
 	init-config                  Create a default config file
 	info                         Show current configuration and loaded modules
+	login                        Configure an AI provider (requires the AI module)
 "#;
 	println!(
 		"{}",
@@ -204,6 +209,71 @@ fn init_config() {
 	match std::fs::write(&path, default_config) {
 		Ok(_) => println!("Config file created at {}", path_display),
 		Err(e) => print_error(&format!("Failed to write config file: {}", e)),
+	}
+}
+
+/// Locates the `_pay-respects-fallback-*request-ai*` binary, searching
+/// `$_PR_LIB`/the compile-time default lib dir first, falling back to a
+/// `$PATH` scan. Returns an absolute path when found via the lib dir, or a
+/// bare executable name (resolvable through `$PATH`) otherwise.
+fn find_fallback_ai_binary() -> Option<String> {
+	let is_match = |name: &str| {
+		name.starts_with("_pay-respects-fallback-")
+			&& name.contains("request-ai")
+			// module binaries never contain a literal `.` in their name;
+			// this also filters out stray build artifacts (e.g. `*.d`
+			// cargo dep-info files) that can end up alongside dev builds.
+			&& !name.contains('.')
+	};
+
+	let lib_dir = std::env::var("_PR_LIB")
+		.ok()
+		.or_else(|| option_env!("_DEF_PR_LIB").map(|s| s.to_string()));
+
+	if let Some(lib_dir) = lib_dir {
+		for p in lib_dir.split(pay_respects_utils::files::path_env_sep()) {
+			#[cfg(windows)]
+			let p = pay_respects_utils::files::path_convert(p);
+
+			let Ok(files) = std::fs::read_dir(p) else {
+				continue;
+			};
+			for file in files.flatten() {
+				let name = file.file_name().to_string_lossy().to_string();
+				if is_match(&name) {
+					return Some(file.path().to_string_lossy().to_string());
+				}
+			}
+		}
+		None
+	} else {
+		get_path_files().into_iter().find(|f| is_match(f))
+	}
+}
+
+/// Execs the AI module binary with a `login` argument, forwarding any
+/// additional CLI args (e.g. `--provider`, `--api-key`) and inheriting
+/// stdio for the fully-interactive setup wizard.
+fn run_login(args: &[String]) -> Status {
+	let bin = match find_fallback_ai_binary() {
+		Some(bin) => bin,
+		None => {
+			print_error(
+				"AI module (_pay-respects-fallback-100-request-ai) not found. Is it installed and in $PATH (or $_PR_LIB)?",
+			);
+			return Status::Error;
+		}
+	};
+
+	let status = std::process::Command::new(&bin).arg("login").args(args).status();
+
+	match status {
+		Ok(status) if status.success() => Status::Exit,
+		Ok(_) => Status::Error,
+		Err(e) => {
+			print_error(&format!("Failed to run AI module: {}", e));
+			Status::Error
+		}
 	}
 }
 

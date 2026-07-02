@@ -17,11 +17,14 @@
 use std::env;
 
 use crate::requests::ai_suggestion;
+use colored::Colorize;
 use sys_locale::get_locale;
 mod buffer;
 mod config;
+mod login;
 mod provider;
 mod requests;
+mod rig_client;
 
 #[macro_use]
 extern crate rust_i18n;
@@ -29,6 +32,16 @@ i18n!("i18n", fallback = "en", minify_key = true);
 
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
+	let args: Vec<String> = env::args().collect();
+	if args.get(1).map(|s| s.as_str()) == Some("login") {
+		colored::control::set_override(true);
+		if let Err(e) = login::run(&args[2..]).await {
+			eprintln!("{}: {}", "error".red(), e);
+			std::process::exit(1);
+		}
+		return Ok(());
+	}
+
 	if std::env::var("_PR_AI_DISABLE").is_ok() {
 		return Ok(());
 	}

@@ -18,6 +18,26 @@ below.
 > `_PR_AI_EXTRA_BODY` was also removed; merge its content into `_PR_AI_EXTRA`
 > (or the config file's `extra` field) instead.
 
+## Quick setup: `pay-respects login`
+
+The easiest way to configure this module is the interactive setup wizard:
+```sh
+pay-respects login
+```
+This walks you through selecting a provider, entering an API key, picking a
+model (fetched from the provider's API when supported, see
+[Supported providers](#supported-providers)), and optionally a custom URL,
+then verifies the credentials and writes the `[ai]` section of
+`config.toml` for you (preserving the rest of the file).
+
+It also accepts flags for non-interactive/scripted use; anything not given
+is prompted for interactively, unless `--provider`, `--api-key`, and
+`--model` are ALL given, in which case it runs fully non-interactively:
+```sh
+pay-respects login --provider openai --api-key sk-... --model gpt-4o
+pay-respects login --help   # full list of flags
+```
+
 ## Configuration
 
 Configuration can be set via the `[ai]` section of
@@ -91,6 +111,15 @@ Any of these can also be pointed at a self-hosted/proxied endpoint using
 
 Not currently supported: Azure OpenAI (needs extra deployment/API-version
 config), and subscription/OAuth-based providers (ChatGPT, GitHub Copilot).
+
+Model listing (used by `pay-respects login` to let you pick a model from a
+list) is supported for: `openai`, `anthropic`, `deepseek`, `mistral`,
+`gemini`, `ollama`, `openrouter`, `xiaomimimo`. For all other providers,
+`login` will ask you to type the model name/ID directly.
+
+Credential verification (used by `pay-respects login` before saving) works
+for all providers above except `together`, which rig-core doesn't currently
+support verifying.
 
 ## Reasoning models
 

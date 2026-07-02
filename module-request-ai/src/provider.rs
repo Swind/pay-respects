@@ -10,18 +10,13 @@ use rig_core::streaming::{StreamedAssistantContent, StreamingPrompt};
 use serde_json::Value;
 
 use crate::buffer::Buffer;
+use crate::{build_client, build_client_no_auth};
 
 /// Builds a client/agent for `$client` (a `rig_core::providers::*::Client`
 /// type path), streams the prompt, and feeds the response into `buffer`.
 macro_rules! run_provider {
 	($client:ty, $key:expr, $url:expr, $model:expr, $extra:expr, $prompt:expr, $buffer:expr) => {{
-		let mut builder = <$client>::builder().api_key($key.to_string());
-		if let Some(url) = $url {
-			builder = builder.base_url(url);
-		}
-		let client = builder
-			.build()
-			.map_err(|e| format!("failed to build client: {e}"))?;
+		let client = build_client!($client, $key, $url)?;
 
 		let mut agent_builder = client.agent($model.to_string());
 		if let Some(extra) = $extra.clone() {
@@ -38,13 +33,7 @@ macro_rules! run_provider {
 /// authentication at all (e.g. Llamafile, which is a purely local runner).
 macro_rules! run_provider_no_auth {
 	($client:ty, $url:expr, $model:expr, $extra:expr, $prompt:expr, $buffer:expr) => {{
-		let mut builder = <$client>::builder().api_key(rig_core::client::Nothing);
-		if let Some(url) = $url {
-			builder = builder.base_url(url);
-		}
-		let client = builder
-			.build()
-			.map_err(|e| format!("failed to build client: {e}"))?;
+		let client = build_client_no_auth!($client, $url)?;
 
 		let mut agent_builder = client.agent($model.to_string());
 		if let Some(extra) = $extra.clone() {

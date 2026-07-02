@@ -265,8 +265,15 @@ to its native API directly. See [module-request-ai/README.md](./module-request-a
 for the full configuration reference and provider list.
 
 There is no built-in API key: you must configure your own provider and key
-before AI suggestions will do anything. To disable it explicitly regardless
-of configuration:
+before AI suggestions will do anything. The easiest way is the interactive
+setup wizard:
+```sh
+pay-respects login
+```
+This walks you through selecting a provider, entering an API key, and
+picking a model, then writes the `[ai]` section of your `config.toml`.
+
+To disable AI explicitly regardless of configuration:
 ```sh
 export _PR_AI_DISABLE=1
 ```
