@@ -212,10 +212,11 @@ fn init_config() {
 	}
 }
 
-/// Locates the `_pay-respects-fallback-*request-ai*` binary, searching
-/// `$_PR_LIB`/the compile-time default lib dir first, falling back to a
-/// `$PATH` scan. Returns an absolute path when found via the lib dir, or a
-/// bare executable name (resolvable through `$PATH`) otherwise.
+/// Locates the `_pay-respects-fallback-*request-ai*` binary, in order:
+/// 1. `$_PR_LIB` / compile-time `_DEF_PR_LIB`
+/// 2. `$PATH` scan
+/// 3. Same directory as the running `pay-respects` binary (last resort,
+///    so builds from source work without `cargo install`)
 fn find_fallback_ai_binary() -> Option<String> {
 	let is_match = |name: &str| {
 		name.starts_with("_pay-respects-fallback-")
@@ -226,6 +227,20 @@ fn find_fallback_ai_binary() -> Option<String> {
 			&& !name.contains('.')
 	};
 
+	let lookup_in_dir = |dir: &str| -> Option<String> {
+		let Ok(files) = std::fs::read_dir(dir) else {
+			return None;
+		};
+		for file in files.flatten() {
+			let name = file.file_name().to_string_lossy().to_string();
+			if is_match(&name) {
+				return Some(file.path().to_string_lossy().to_string());
+			}
+		}
+		None
+	};
+
+	// 1. $_PR_LIB / _DEF_PR_LIB
 	let lib_dir = std::env::var("_PR_LIB")
 		.ok()
 		.or_else(|| option_env!("_DEF_PR_LIB").map(|s| s.to_string()));
@@ -234,21 +249,22 @@ fn find_fallback_ai_binary() -> Option<String> {
 		for p in lib_dir.split(pay_respects_utils::files::path_env_sep()) {
 			#[cfg(windows)]
 			let p = pay_respects_utils::files::path_convert(p);
-
-			let Ok(files) = std::fs::read_dir(p) else {
-				continue;
-			};
-			for file in files.flatten() {
-				let name = file.file_name().to_string_lossy().to_string();
-				if is_match(&name) {
-					return Some(file.path().to_string_lossy().to_string());
-				}
+			if let Some(found) = lookup_in_dir(p) {
+				return Some(found);
 			}
 		}
-		None
-	} else {
-		get_path_files().into_iter().find(|f| is_match(f))
 	}
+
+	// 2. $PATH
+	if let Some(found) = get_path_files().into_iter().find(|f| is_match(f)) {
+		return Some(found);
+	}
+
+	// 3. Same directory as the running binary
+	std::env::current_exe()
+		.ok()
+		.and_then(|exe| exe.parent().map(|p| p.to_string_lossy().to_string()))
+		.and_then(|dir| lookup_in_dir(&dir))
 }
 
 /// Execs the AI module binary with a `login` argument, forwarding any
