@@ -84,6 +84,31 @@ pub async fn stream_completion(
 				buffer
 			)
 		}
+		"chatgpt" => {
+			// ChatGPT uses OAuth, not a static API key. rig-core handles
+			// the full flow (device code, token caching, refresh) and
+			// triggers OAuth automatically on first request.
+			let client = rig_core::providers::chatgpt::Client::builder()
+				.oauth()
+				.on_device_code(|p| {
+					eprintln!(
+						"\n  Open {} in your browser and enter code: {}\n",
+						p.verification_uri,
+						p.user_code
+					);
+				})
+				.build()
+				.map_err(|e| format!("failed to build ChatGPT client: {e}"))?;
+
+			let mut agent_builder = client.agent(model.to_string());
+			if let Some(extra) = extra.clone() {
+				agent_builder = agent_builder.additional_params(extra);
+			}
+			let agent = agent_builder.build();
+
+			let mut stream = agent.stream_prompt(prompt.clone()).await;
+			consume_stream(&mut stream, buffer).await
+		}
 		"gemini" => {
 			run_provider!(
 				rig_core::providers::gemini::Client,

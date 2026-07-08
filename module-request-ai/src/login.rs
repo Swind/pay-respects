@@ -8,7 +8,10 @@ use colored::Colorize;
 use pay_respects_select::select_simple;
 use rig_core::prelude::{ModelListingClient, VerifyClient};
 
-use crate::rig_client::{PROVIDERS, is_known_provider, requires_no_auth, supports_listing};
+use crate::rig_client::{
+	PROVIDERS, ZAI_CODING_URL, is_known_provider, is_oauth_provider, requires_no_auth,
+	supports_listing,
+};
 use crate::{build_client, build_client_no_auth};
 
 struct LoginArgs {
@@ -27,11 +30,23 @@ pub async fn run(args: &[String]) -> Result<(), String> {
 		return Ok(());
 	}
 
+	let oauth = opts
+		.provider
+		.as_deref()
+		.map(is_oauth_provider)
+		.unwrap_or(false);
+
 	// When every core field is given via flags, run fully non-interactively
-	// (e.g. for scripting/CI): don't prompt for anything not explicitly set,
-	// just fall back to sensible defaults (provider's default URL, etc.).
-	let fully_specified =
-		opts.provider.is_some() && opts.api_key.is_some() && opts.model.is_some();
+	// (e.g. for scripting/CI): don't prompt for anything not explicitly set
+	// beyond what's actually required. Model is intentionally NOT part of
+	// this: it's only prompted for when the provider supports fetching a
+	// real model list (see below); otherwise it's left for a later
+	// `pay-respects model` run instead of forcing manual entry here.
+	let fully_specified = if oauth {
+		opts.provider.is_some()
+	} else {
+		opts.provider.is_some() && opts.api_key.is_some()
+	};
 
 	let provider = match &opts.provider {
 		Some(p) => {
@@ -45,28 +60,57 @@ pub async fn run(args: &[String]) -> Result<(), String> {
 		None => prompt_select_provider()?,
 	};
 
+	let oauth = is_oauth_provider(&provider);
 	let no_auth = requires_no_auth(&provider);
 
-	let api_key = match &opts.api_key {
-		Some(k) => k.clone(),
-		None if no_auth => String::new(),
-		None => prompt_api_key(&provider)?,
-	};
-	// A non-empty placeholder is still stored for no-auth providers, since
-	// the module treats an empty api_key as "AI disabled" (see requests.rs).
-	let stored_key = if api_key.is_empty() {
-		provider.clone()
+	// --- Z.AI coding plan ---
+	let url = if provider == "zai" && opts.url.is_none() && !fully_specified {
+		if prompt_yes_no("Use Z.AI coding plan endpoint?", false)? {
+			Some(ZAI_CODING_URL.to_string())
+		} else {
+			None
+		}
 	} else {
-		api_key.clone()
+		opts.url.clone()
 	};
 
-	let url = match &opts.url {
-		Some(u) => Some(u.clone()),
-		None if fully_specified => None,
-		None => prompt_optional_url(&provider)?,
+	// --- API key / OAuth ---
+	let (stored_key, oauth_verified) = if oauth {
+		let placeholder = "chatgpt-oauth".to_string();
+
+		if !opts.no_verify {
+			println!("Starting ChatGPT OAuth login...");
+			trigger_chatgpt_oauth().await?;
+			println!("{}", "OAuth login successful!".green());
+		}
+		(placeholder, true)
+	} else {
+		let api_key = match &opts.api_key {
+			Some(k) => k.clone(),
+			None if no_auth => String::new(),
+			None => prompt_api_key(&provider)?,
+		};
+		let stored_key = if api_key.is_empty() {
+			provider.clone()
+		} else {
+			api_key.clone()
+		};
+		(stored_key, false)
 	};
 
-	if !opts.no_verify {
+	// --- URL override ---
+	let url = if oauth {
+		None
+	} else {
+		match &url {
+			Some(u) => Some(u.clone()),
+			None if fully_specified => None,
+			None => prompt_optional_url(&provider)?,
+		}
+	};
+
+	// --- Verify credentials (non-OAuth only) ---
+	if !opts.no_verify && !oauth_verified {
 		print!("Verifying credentials... ");
 		std::io::stdout().flush().ok();
 		match verify(&provider, &stored_key, url.as_deref()).await {
@@ -81,29 +125,122 @@ pub async fn run(args: &[String]) -> Result<(), String> {
 		}
 	}
 
+	// --- Select model ---
+	// Only prompt when the provider supports fetching a real model list
+	// from its API; otherwise, don't force manual entry here — leave the
+	// model field as-is (or unset) and let the user run
+	// `pay-respects model` once they know what they want to use.
 	let model = match &opts.model {
-		Some(m) => m.clone(),
+		Some(m) => Some(m.clone()),
+		None if oauth => Some(prompt_chatgpt_model()?),
 		None if supports_listing(&provider) => {
 			match list_models(&provider, &stored_key, url.as_deref()).await {
-				Ok(models) if !models.is_empty() => prompt_select_model(&models)?,
+				Ok(models) if !models.is_empty() => Some(prompt_select_model(&models)?),
 				Ok(_) => {
 					eprintln!("(no models returned by the provider)");
-					prompt_line("Enter model name/ID: ")?
+					None
 				}
 				Err(e) => {
 					eprintln!("Failed to fetch model list: {e}");
-					prompt_line("Enter model name/ID: ")?
+					None
 				}
 			}
 		}
-		None => prompt_line("Enter model name/ID: ")?,
+		None => None,
 	};
 
-	write_config(&provider, &stored_key, &model, url.as_deref())?;
+	write_config(&provider, &stored_key, model.as_deref(), url.as_deref())?;
 
 	let path = pay_respects_utils::files::user_config_path();
 	println!("Configuration saved to {}", path.bold());
+	if model.is_none() {
+		println!(
+			"No model set. Run {} to pick one.",
+			"pay-respects model".bold()
+		);
+	}
 	Ok(())
+}
+
+/// `pay-respects model [MODEL]` — switch model without re-running full login.
+/// Reads the current `[ai]` config to reuse provider/key/url, then either
+/// sets the model directly from the argument or lets the user pick.
+pub async fn run_model(args: &[String]) -> Result<(), String> {
+	let model_arg = args.iter().find(|a| !a.starts_with('-')).cloned();
+
+	// Load current config to reuse provider/key/url
+	let file_conf = crate::config::load_config();
+	let ai = file_conf.ai.unwrap_or_default();
+
+	let provider = ai.provider.unwrap_or_default();
+	let key = ai.api_key.unwrap_or_default();
+	let url = ai.url;
+
+	if provider.is_empty() || key.is_empty() {
+		return Err(
+			"No AI provider configured. Run `pay-respects login` first.".to_string(),
+		);
+	}
+
+	let oauth = is_oauth_provider(&provider);
+	let model = if let Some(m) = model_arg {
+		m
+	} else if oauth {
+		// ChatGPT: show known models
+		prompt_chatgpt_model()?
+	} else if supports_listing(&provider) {
+		match list_models(&provider, &key, url.as_deref()).await {
+			Ok(models) if !models.is_empty() => prompt_select_model(&models)?,
+			Ok(_) => {
+				eprintln!("(no models returned by the provider)");
+				prompt_line("Enter model name/ID: ")?
+			}
+			Err(e) => {
+				eprintln!("Failed to fetch model list: {e}");
+				prompt_line("Enter model name/ID: ")?
+			}
+		}
+	} else {
+		prompt_line(&format!(
+			"Enter model name/ID{}: ",
+			ai.model.as_deref().map(|m| format!(" (current: {m})")).unwrap_or_default()
+		))?
+	};
+
+	if model.trim().is_empty() {
+		println!("No model given, keeping current configuration unchanged.");
+		return Ok(());
+	}
+
+	// Only update the model field, preserve everything else
+	write_config_model(&model)?;
+
+	let path = pay_respects_utils::files::user_config_path();
+	println!("Model set to {}", model.bold());
+	println!("Config: {}", path);
+	Ok(())
+}
+
+/// Updates only the `model` field in the `[ai]` section, preserving all
+/// other fields and comments.
+fn write_config_model(model: &str) -> Result<(), String> {
+	let path = pay_respects_utils::files::user_config_path();
+
+	let existing = std::fs::read_to_string(&path).unwrap_or_default();
+	let mut doc = existing
+		.parse::<toml_edit::DocumentMut>()
+		.map_err(|e| format!("failed to parse config file: {e}"))?;
+
+	if !doc.contains_table("ai") {
+		doc["ai"] = toml_edit::table();
+	}
+	let ai = doc["ai"].as_table_mut().ok_or("`ai` is not a table")?;
+	ai["model"] = toml_edit::value(model);
+
+	if let Some(parent) = std::path::Path::new(&path).parent() {
+		std::fs::create_dir_all(parent).map_err(|e| format!("failed to create directory: {e}"))?;
+	}
+	std::fs::write(&path, doc.to_string()).map_err(|e| format!("failed to write config: {e}"))
 }
 
 fn parse_login_args(args: &[String]) -> Result<LoginArgs, String> {
@@ -149,9 +286,12 @@ Interactively configure the AI module (provider, API key, and model),
 writing the result to the [ai] section of config.toml. Any option given
 below is used as-is instead of being prompted for.
 
+For OAuth providers (chatgpt), --api-key is not needed; the login flow
+will open a browser for authentication instead.
+
 Options:
 	    --provider <PROVIDER>  AI provider to use
-	    --api-key <KEY>        API key
+	    --api-key <KEY>        API key (not needed for chatgpt/llamafile)
 	    --model <MODEL>        Model name/ID
 	    --url <URL>            Override the provider's default base URL
 	    --no-verify            Skip verifying the API key before saving
@@ -198,6 +338,30 @@ fn prompt_select_model(models: &[rig_core::model::Model]) -> Result<String, Stri
 	}
 }
 
+fn prompt_chatgpt_model() -> Result<String, String> {
+	let models = [
+		"gpt-5.4",
+		"gpt-5.4-pro",
+		"gpt-5.3-codex",
+		"gpt-5.3-codex-spark",
+		"gpt-5.3-instant",
+		"gpt-5.3-chat-latest",
+	];
+	let items: Vec<String> = models
+		.iter()
+		.map(|m| format!("{m} ({m})"))
+		.chain(std::iter::once("[Enter a model name/ID manually]".to_string()))
+		.collect();
+	let idx =
+		select_simple("Select a model:", &items).map_err(|e| format!("selection failed: {e}"))?;
+
+	if idx == models.len() {
+		prompt_line("Enter model name/ID: ")
+	} else {
+		Ok(models[idx].to_string())
+	}
+}
+
 fn prompt_api_key(provider: &str) -> Result<String, String> {
 	rpassword::prompt_password(format!("Enter API key for {provider}: "))
 		.map_err(|e| format!("failed to read API key: {e}"))
@@ -205,7 +369,6 @@ fn prompt_api_key(provider: &str) -> Result<String, String> {
 
 fn prompt_optional_url(provider: &str) -> Result<Option<String>, String> {
 	if requires_no_auth(provider) {
-		// Local runners are commonly used with a non-default port/host.
 		if prompt_yes_no(
 			&format!("Use a custom URL for {provider} instead of its default?"),
 			false,
@@ -215,10 +378,7 @@ fn prompt_optional_url(provider: &str) -> Result<Option<String>, String> {
 		return Ok(None);
 	}
 
-	if prompt_yes_no(
-		&format!("Use {provider}'s default endpoint?"),
-		true,
-	)? {
+	if prompt_yes_no(&format!("Use {provider}'s default endpoint?"), true)? {
 		Ok(None)
 	} else {
 		Ok(Some(prompt_line("Enter URL: ")?))
@@ -245,6 +405,31 @@ fn prompt_yes_no(prompt: &str, default_yes: bool) -> Result<bool, String> {
 	})
 }
 
+/// Triggers the ChatGPT OAuth device code flow. rig-core handles the full
+/// flow internally (including token caching and refresh).
+///
+/// Do not use a completion request for this. Model availability is account
+/// dependent, so a successful OAuth handshake can still fail with "model is
+/// not supported" if we verify by prompting a hardcoded model.
+async fn trigger_chatgpt_oauth() -> Result<(), String> {
+	let client = rig_core::providers::chatgpt::Client::builder()
+		.oauth()
+		.on_device_code(|prompt| {
+			println!(
+				"\n  Open {} in your browser and enter code: {}\n",
+				prompt.verification_uri.bold(),
+				prompt.user_code.bold()
+			);
+		})
+		.build()
+		.map_err(|e| format!("failed to build ChatGPT client: {e}"))?;
+
+	client
+		.authorize()
+		.await
+		.map_err(|e| format!("ChatGPT OAuth failed: {e}"))
+}
+
 async fn verify(provider: &str, key: &str, url: Option<&str>) -> Result<(), String> {
 	macro_rules! v {
 		($client:ty) => {{
@@ -262,15 +447,17 @@ async fn verify(provider: &str, key: &str, url: Option<&str>) -> Result<(), Stri
 	match provider {
 		"" | "openai" => v!(rig_core::providers::openai::Client),
 		"anthropic" => v!(rig_core::providers::anthropic::Client),
+		"chatgpt" => {
+			// ChatGPT uses OAuth, verify() doesn't apply. OAuth was already
+			// triggered in trigger_chatgpt_oauth() above.
+			Ok(())
+		}
 		"gemini" => v!(rig_core::providers::gemini::Client),
 		"mistral" => v!(rig_core::providers::mistral::Client),
 		"cohere" => v!(rig_core::providers::cohere::Client),
 		"xai" => v!(rig_core::providers::xai::Client),
 		"deepseek" => v!(rig_core::providers::deepseek::Client),
 		"perplexity" => v!(rig_core::providers::perplexity::Client),
-		// `TogetherExt` doesn't implement `DebugExt` in rig-core 0.39, so
-		// `VerifyClient` isn't available for it. Treat as unverifiable
-		// rather than failing to compile.
 		"together" => Err("verification is not supported for this provider".to_string()),
 		"groq" => v!(rig_core::providers::groq::Client),
 		"openrouter" => v!(rig_core::providers::openrouter::Client),
@@ -317,7 +504,15 @@ async fn list_models(
 	}
 }
 
-fn write_config(provider: &str, key: &str, model: &str, url: Option<&str>) -> Result<(), String> {
+/// Writes provider/api_key/url unconditionally; `model` is only written
+/// when `Some` — when `None`, whatever model value is already in the
+/// config file (if any) is left untouched, rather than being blanked out.
+fn write_config(
+	provider: &str,
+	key: &str,
+	model: Option<&str>,
+	url: Option<&str>,
+) -> Result<(), String> {
 	let path = pay_respects_utils::files::user_config_path();
 
 	let existing = std::fs::read_to_string(&path).unwrap_or_default();
@@ -332,7 +527,9 @@ fn write_config(provider: &str, key: &str, model: &str, url: Option<&str>) -> Re
 
 	ai["provider"] = toml_edit::value(provider);
 	ai["api_key"] = toml_edit::value(key);
-	ai["model"] = toml_edit::value(model);
+	if let Some(model) = model {
+		ai["model"] = toml_edit::value(model);
+	}
 	if let Some(url) = url {
 		ai["url"] = toml_edit::value(url);
 	} else {

@@ -24,15 +24,23 @@ The easiest way to configure this module is the interactive setup wizard:
 ```sh
 pay-respects login
 ```
-This walks you through selecting a provider, entering an API key, picking a
-model (fetched from the provider's API when supported, see
-[Supported providers](#supported-providers)), and optionally a custom URL,
-then verifies the credentials and writes the `[ai]` section of
-`config.toml` for you (preserving the rest of the file).
+This walks you through selecting a provider, entering an API key, and
+optionally a custom URL, then verifies the credentials and writes the
+`[ai]` section of `config.toml` for you (preserving the rest of the file).
 
-It also accepts flags for non-interactive/scripted use; anything not given
-is prompted for interactively, unless `--provider`, `--api-key`, and
-`--model` are ALL given, in which case it runs fully non-interactively:
+If the provider supports fetching a model list from its API (see
+[Supported providers](#supported-providers)), you'll also be asked to pick
+one. Otherwise, `login` leaves the model unset — run `pay-respects model`
+afterward to finish setup:
+```sh
+pay-respects model              # interactive: pick from a list, or type one
+pay-respects model gpt-4o-mini  # set directly
+```
+This reuses the provider/API key/URL already in your config and only
+updates the `model` field (leaving everything else untouched, including an
+existing model if you don't provide a new one and listing fails).
+
+It also accepts flags for non-interactive/scripted use:
 ```sh
 pay-respects login --provider openai --api-key sk-... --model gpt-4o
 pay-respects login --help   # full list of flags
@@ -101,16 +109,33 @@ model = "llama3"
 
 Set `provider` to one of the following (default: `openai`):
 
-`openai`, `anthropic`, `gemini`, `mistral`, `cohere`, `xai`, `deepseek`,
-`perplexity`, `together`, `groq`, `openrouter`, `huggingface`, `hyperbolic`,
-`ollama`, `llamafile`, `moonshot`, `minimax`, `xiaomimimo`, `zai`,
-`galadriel`, `mira`.
+`openai`, `anthropic`, `chatgpt`, `gemini`, `mistral`, `cohere`, `xai`,
+`deepseek`, `perplexity`, `together`, `groq`, `openrouter`, `huggingface`,
+`hyperbolic`, `ollama`, `llamafile`, `moonshot`, `minimax`, `xiaomimimo`,
+`zai`, `galadriel`, `mira`.
 
 Any of these can also be pointed at a self-hosted/proxied endpoint using
 `url`, as long as it speaks that provider's native API.
 
 Not currently supported: Azure OpenAI (needs extra deployment/API-version
-config), and subscription/OAuth-based providers (ChatGPT, GitHub Copilot).
+config).
+
+**ChatGPT (subscription, OAuth):** The `chatgpt` provider uses a ChatGPT
+Plus/Pro subscription via OAuth device code flow — no API key needed.
+`pay-respects login` will open a browser for you to authenticate. The
+OAuth token is cached and auto-refreshed by rig-core in
+`~/.config/chatgpt/auth.json`.
+
+**Z.AI coding plan:** When you select `zai` during `pay-respects login`,
+you'll be asked whether to use the coding plan endpoint. You can also
+set it manually:
+```toml
+[ai]
+provider = "zai"
+api_key = "..."
+model = "glm-4.6"
+url = "https://api.z.ai/api/coding/paas/v4"
+```
 
 Model listing (used by `pay-respects login` to let you pick a model from a
 list) is supported for: `openai`, `anthropic`, `deepseek`, `mistral`,
@@ -118,8 +143,8 @@ list) is supported for: `openai`, `anthropic`, `deepseek`, `mistral`,
 `login` will ask you to type the model name/ID directly.
 
 Credential verification (used by `pay-respects login` before saving) works
-for all providers above except `together`, which rig-core doesn't currently
-support verifying.
+for all providers above except `together` (rig-core limitation) and
+`chatgpt` (OAuth completion itself serves as verification).
 
 ## Reasoning models
 

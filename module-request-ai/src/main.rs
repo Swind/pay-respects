@@ -33,13 +33,24 @@ i18n!("i18n", fallback = "en", minify_key = true);
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
 	let args: Vec<String> = env::args().collect();
-	if args.get(1).map(|s| s.as_str()) == Some("login") {
-		colored::control::set_override(true);
-		if let Err(e) = login::run(&args[2..]).await {
-			eprintln!("{}: {}", "error".red(), e);
-			std::process::exit(1);
+	match args.get(1).map(|s| s.as_str()) {
+		Some("login") => {
+			colored::control::set_override(true);
+			if let Err(e) = login::run(&args[2..]).await {
+				eprintln!("{}: {}", "error".red(), e);
+				std::process::exit(1);
+			}
+			return Ok(());
 		}
-		return Ok(());
+		Some("model") => {
+			colored::control::set_override(true);
+			if let Err(e) = login::run_model(&args[2..]).await {
+				eprintln!("{}: {}", "error".red(), e);
+				std::process::exit(1);
+			}
+			return Ok(());
+		}
+		_ => {}
 	}
 
 	if std::env::var("_PR_AI_DISABLE").is_ok() {

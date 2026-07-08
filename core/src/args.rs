@@ -40,7 +40,11 @@ pub fn handle_args(args: impl IntoIterator<Item = String>) -> Status {
 			}
 			"login" => {
 				let rest: Vec<String> = iter.collect();
-				return run_login(&rest);
+				return run_login(&rest, "login");
+			}
+			"model" => {
+				let rest: Vec<String> = iter.collect();
+				return run_login(&rest, "model");
 			}
 			"-a" | "--alias" => match iter.peek() {
 				Some(next_arg) if !next_arg.starts_with('-') => {
@@ -93,6 +97,7 @@ Commands:
 	init-config                  Create a default config file
 	info                         Show current configuration and loaded modules
 	login                        Configure an AI provider (requires the AI module)
+	model [<name>]               Switch the AI model without re-running login
 "#;
 	println!(
 		"{}",
@@ -267,10 +272,10 @@ fn find_fallback_ai_binary() -> Option<String> {
 		.and_then(|dir| lookup_in_dir(&dir))
 }
 
-/// Execs the AI module binary with a `login` argument, forwarding any
-/// additional CLI args (e.g. `--provider`, `--api-key`) and inheriting
-/// stdio for the fully-interactive setup wizard.
-fn run_login(args: &[String]) -> Status {
+/// Execs the AI module binary with a subcommand (`login` or `model`),
+/// forwarding any additional CLI args and inheriting stdio for the
+/// fully-interactive flow.
+fn run_login(args: &[String], subcommand: &str) -> Status {
 	let bin = match find_fallback_ai_binary() {
 		Some(bin) => bin,
 		None => {
@@ -281,7 +286,10 @@ fn run_login(args: &[String]) -> Status {
 		}
 	};
 
-	let status = std::process::Command::new(&bin).arg("login").args(args).status();
+	let status = std::process::Command::new(&bin)
+		.arg(subcommand)
+		.args(args)
+		.status();
 
 	match status {
 		Ok(status) if status.success() => Status::Exit,

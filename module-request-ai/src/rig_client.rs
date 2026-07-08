@@ -7,6 +7,7 @@
 pub const PROVIDERS: &[(&str, &str)] = &[
 	("openai", "OpenAI"),
 	("anthropic", "Anthropic"),
+	("chatgpt", "ChatGPT (subscription, OAuth login)"),
 	("gemini", "Google Gemini"),
 	("mistral", "Mistral"),
 	("cohere", "Cohere"),
@@ -46,6 +47,13 @@ pub const LISTING_PROVIDERS: &[&str] = &[
 /// local runners).
 pub const NO_AUTH_PROVIDERS: &[&str] = &["llamafile"];
 
+/// Providers that authenticate via OAuth device code flow instead of a
+/// static API key. rig-core handles the full flow (token storage, refresh).
+pub const OAUTH_PROVIDERS: &[&str] = &["chatgpt"];
+
+/// Z.AI coding plan endpoint (alternative to the default general endpoint).
+pub const ZAI_CODING_URL: &str = "https://api.z.ai/api/coding/paas/v4";
+
 pub fn is_known_provider(provider: &str) -> bool {
 	provider.is_empty() || PROVIDERS.iter().any(|(id, _)| *id == provider)
 }
@@ -56,6 +64,10 @@ pub fn supports_listing(provider: &str) -> bool {
 
 pub fn requires_no_auth(provider: &str) -> bool {
 	NO_AUTH_PROVIDERS.contains(&provider)
+}
+
+pub fn is_oauth_provider(provider: &str) -> bool {
+	OAUTH_PROVIDERS.contains(&provider)
 }
 
 /// Builds a client for `$client` (a `rig_core::providers::*::Client` type
